@@ -1,0 +1,32 @@
+Package: fexactnet
+Type: Package
+Title: Exact Fisher Networks for Three-Row Contingency Tables
+Version: 0.2.0
+Date: 2026-08-19
+Authors@R: person(
+    given = c("Maarten", "Linus"),
+    family = "Herrmann",
+    role = c("aut", "cre"),
+    email = "Maar10Herr@users.noreply.github.com",
+    comment = c(ORCID = "0009-0005-8721-6588")
+  )
+Description: Computes Fisher-Freeman-Halton exact tests for three-row
+    contingency tables using a native network algorithm. Engines expose
+    accept-only pruning, daughter-line batching, exact outer-interval
+    acceptance, interval-mass aggregation, and a controlled monotone-peak
+    ablation. Other table dimensions delegate explicitly to
+    'stats::fisher.test'. Floating log-factorial output follows the
+    documented FEXACT-compatible probability ordering.
+License: GPL (>= 2)
+Encoding: UTF-8
+Depends: R (>= 4.2.0)
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
+NeedsCompilation: yes
+SystemRequirements: C11
+Config/roxygen2/version: 8.0.0
+URL: https://github.com/Maar10Herr/Exact-Fisher-Network-Public
+BugReports: https://github.com/Maar10Herr/Exact-Fisher-Network-Public/issues

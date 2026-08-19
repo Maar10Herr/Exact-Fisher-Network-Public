@@ -1,0 +1,3 @@
+useDynLib(fexactnet, .registration = TRUE, .fixes = "C_")
+export(fisher_network)
+S3method(print, fisher_network_htest)
