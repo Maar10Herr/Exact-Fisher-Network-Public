@@ -1,0 +1,4 @@
+^\.Rproj\.user$
+^.*\.Rproj$
+^src/.*\.(o|so|dll)$
+^src/symbols\.rds$

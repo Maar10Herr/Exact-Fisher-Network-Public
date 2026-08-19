@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exact-fisher-network"
+version = "0.2.0"
+description = "Exact-rational reference implementation for the Mehta-Patel Fisher network"
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "GPL-2.0-or-later"}
+authors = [
+  {name = "Maarten Linus Herrmann"},
+]
+keywords = [
+  "Fisher exact test",
+  "contingency tables",
+  "network algorithm",
+  "exact computation",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+]
+
+[project.urls]
+Homepage = "https://github.com/Maar10Herr/Exact-Fisher-Network-Public"
+Paper = "https://github.com/Maar10Herr/Exact-Fisher-Network-Public/blob/main/paper/Herrmann_Strict_Cross_Slice_Fisher_Network.pdf"
+Issues = "https://github.com/Maar10Herr/Exact-Fisher-Network-Public/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]

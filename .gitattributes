@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.pdf binary
+*.c text diff=c
+*.h text diff=c
+*.R text
+*.Rd text

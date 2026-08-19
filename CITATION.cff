@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use the software or theorem, please cite the paper and this repository."
+title: "Exact Fisher Network"
+type: software
+authors:
+  - family-names: Herrmann
+    given-names: Maarten Linus
+    orcid: "https://orcid.org/0009-0005-8721-6588"
+version: 0.2.0
+date-released: 2026-08-19
+repository-code: "https://github.com/Maar10Herr/Exact-Fisher-Network-Public"
+license: GPL-2.0-or-later
+preferred-citation:
+  type: article
+  title: "Strict Cross-Slice Order and Line Batching in the Exact Fisher Network"
+  authors:
+    - family-names: Herrmann
+      given-names: Maarten Linus
+      orcid: "https://orcid.org/0009-0005-8721-6588"
+  year: 2026
+  repository-code: "https://github.com/Maar10Herr/Exact-Fisher-Network-Public"
+  notes: "Technical preprint, release 0.2.0."
