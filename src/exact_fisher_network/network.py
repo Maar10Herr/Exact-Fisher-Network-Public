@@ -9,6 +9,8 @@ from functools import lru_cache
 from math import factorial
 from typing import Iterator, Mapping, Sequence
 
+from ._validation import integer as _integer
+
 WeightMultiset = tuple[tuple[int, int], ...]
 
 
@@ -60,7 +62,9 @@ class NetworkResult:
 
 
 def _validate_observed(table: Sequence[Sequence[int]]) -> tuple[tuple[int, ...], ...]:
-    rows = tuple(tuple(int(value) for value in row) for row in table)
+    rows = tuple(
+        tuple(_integer(value, "cell count") for value in row) for row in table
+    )
     if len(rows) < 2 or not rows or len(rows[0]) < 2:
         raise ValueError("A contingency table must have at least two rows and columns.")
     width = len(rows[0])
@@ -307,4 +311,3 @@ def exact_network(observed: Sequence[Sequence[int]]) -> NetworkResult:
             prefix_state_pairs_checked=prefix_state_pairs_checked,
         ),
     )
-

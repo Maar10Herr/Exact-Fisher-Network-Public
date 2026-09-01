@@ -5,6 +5,7 @@ from itertools import combinations
 import unittest
 
 from exact_fisher_network.network import exact_network
+from exact_fisher_network.optimized import exact_state_network
 from exact_fisher_network.oracle import (
     conditional_denominator,
     enumerate_tables,
@@ -112,6 +113,29 @@ class ExactOracleTests(unittest.TestCase):
                     for weight, count in state.continuation_multiset
                 ),
             )
+
+    def test_nonintegral_and_boolean_cells_are_rejected(self) -> None:
+        for invalid in (1.5, True, "2"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    exact_network(((invalid, 1), (1, 1)))
+                with self.assertRaises(ValueError):
+                    exact_enumeration(((invalid, 1), (1, 1)))
+                with self.assertRaises(ValueError):
+                    exact_state_network(
+                        ((invalid, 1), (1, 1)),
+                        batching=False,
+                    )
+
+    def test_nonintegral_and_boolean_margins_are_rejected(self) -> None:
+        for invalid in (1.5, True, "2"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    tuple(enumerate_tables((invalid, 1), (1, 1)))
+                with self.assertRaises(ValueError):
+                    tuple(enumerate_tables((1, 1), (invalid, 1)))
+                with self.assertRaises(ValueError):
+                    conditional_denominator((invalid, 1))
 
 
 if __name__ == "__main__":
