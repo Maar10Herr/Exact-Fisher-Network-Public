@@ -11,6 +11,8 @@ from fractions import Fraction
 from math import factorial
 from typing import Iterator, Sequence
 
+from ._validation import integer as _integer
+
 Table = tuple[tuple[int, ...], ...]
 
 
@@ -35,7 +37,9 @@ class EnumerationResult:
 
 
 def _validated_table(table: Sequence[Sequence[int]]) -> Table:
-    rows = tuple(tuple(int(value) for value in row) for row in table)
+    rows = tuple(
+        tuple(_integer(value, "cell count") for value in row) for row in table
+    )
     if len(rows) < 2 or not rows or len(rows[0]) < 2:
         raise ValueError("A contingency table must have at least two rows and columns.")
     width = len(rows[0])
@@ -73,8 +77,12 @@ def enumerate_tables(
 ) -> Iterator[Table]:
     """Enumerate every nonnegative integer table with the fixed margins."""
 
-    rows = tuple(int(value) for value in row_margins)
-    columns = tuple(int(value) for value in column_margins)
+    rows = tuple(
+        _integer(value, "row margin") for value in row_margins
+    )
+    columns = tuple(
+        _integer(value, "column margin") for value in column_margins
+    )
     if len(rows) < 2 or len(columns) < 2:
         raise ValueError("At least two positive row and column margins are required.")
     if any(value <= 0 for value in (*rows, *columns)):
@@ -122,7 +130,7 @@ def path_weight(table: Sequence[Sequence[int]]) -> int:
 def conditional_denominator(row_margins: Sequence[int]) -> int:
     """Return ``multinomial(N; r_1, ..., r_r)``."""
 
-    rows = tuple(int(value) for value in row_margins)
+    rows = tuple(_integer(value, "row margin") for value in row_margins)
     result = factorial(sum(rows))
     for value in rows:
         result //= factorial(value)
@@ -184,4 +192,3 @@ def exact_enumeration(
         extreme_table_count=extreme_count,
         records=tuple(records),
     )
-

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Literal, Protocol, Sequence
 
+from ._validation import integer as _integer
 from .extrema import ExactExtrema, Extremum, column_vectors, multinomial
 from .flow_extrema import ExactFlowExtrema
 
@@ -110,7 +111,9 @@ class EngineResult:
 
 
 def _validate_observed(table: Sequence[Sequence[int]]) -> tuple[tuple[int, ...], ...]:
-    rows = tuple(tuple(int(value) for value in row) for row in table)
+    rows = tuple(
+        tuple(_integer(value, "cell count") for value in row) for row in table
+    )
     if len(rows) < 2 or not rows or len(rows[0]) < 2:
         raise ValueError("A contingency table must have at least two rows and columns.")
     width = len(rows[0])
