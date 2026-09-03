@@ -122,14 +122,14 @@ SEXP fexactnet_compute(
     double workspace = asReal(workspace_value);
     if (
         !R_FINITE(workspace) || workspace < 1.0 ||
-        workspace > (double) SIZE_MAX
+        workspace >= (double) SIZE_MAX
     ) {
         error("workspace must be a finite positive byte count.");
     }
     double fail_after = asReal(fail_after_value);
     if (
         !R_FINITE(fail_after) || fail_after < 0.0 ||
-        fail_after > (double) UINT64_MAX
+        fail_after >= (double) UINT64_MAX
     ) {
         error("Internal allocation-failure control is invalid.");
     }

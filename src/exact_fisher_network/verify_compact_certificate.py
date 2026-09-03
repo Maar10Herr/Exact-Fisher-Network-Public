@@ -23,6 +23,13 @@ def _multinomial(parts: Sequence[int]) -> int:
     return result
 
 
+def _integer(value: object, name: str) -> int:
+    """Accept JSON integers only; never silently truncate strings/floats."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AssertionError(f"{name} must be an integer.")
+    return value
+
+
 def _column_vectors(
     total: int,
     upper: tuple[int, ...],
@@ -45,7 +52,7 @@ def _column_vectors(
 def _tuple_vector(value: object) -> tuple[int, ...]:
     if not isinstance(value, (list, tuple)):
         raise AssertionError("Expected a vector.")
-    return tuple(int(item) for item in value)
+    return tuple(_integer(item, "vector item") for item in value)
 
 
 def _tuple_matrix(value: object) -> tuple[tuple[int, ...], ...]:
@@ -57,7 +64,10 @@ def _tuple_matrix(value: object) -> tuple[tuple[int, ...], ...]:
 def _fraction(value: object) -> Fraction:
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         raise AssertionError("Expected an exact rational.")
-    result = Fraction(int(value[0]), int(value[1]))
+    result = Fraction(
+        _integer(value[0], "rational numerator"),
+        _integer(value[1], "rational denominator"),
+    )
     if result <= 0:
         raise AssertionError("Flow scalars must be positive.")
     return result
@@ -122,7 +132,7 @@ def _verify_extremum(
 
 def _state_key(raw: dict[str, object]) -> tuple[object, ...]:
     return (
-        int(raw["layer"]),
+        _integer(raw["layer"], "layer"),
         _tuple_vector(raw["residual_rows"]),
         _tuple_vector(raw["remaining_columns"]),
     )
@@ -131,8 +141,8 @@ def _state_key(raw: dict[str, object]) -> tuple[object, ...]:
 def _batch_key(raw: dict[str, object]) -> tuple[object, ...]:
     return (
         *_state_key(raw),
-        int(raw["prefix_weight"]),
-        int(raw["prefix_multiplicity"]),
+        _integer(raw["prefix_weight"], "prefix_weight"),
+        _integer(raw["prefix_multiplicity"], "prefix_multiplicity"),
         _tuple_vector(raw["fixed_tail"]),
     )
 
@@ -190,16 +200,16 @@ def _verify_query(
 ) -> int:
     if not isinstance(raw, dict):
         raise AssertionError("Malformed boundary query.")
-    if int(raw["index"]) != index:
+    if _integer(raw["index"], "query index") != index:
         raise AssertionError("Boundary query index is inconsistent.")
     if _tuple_vector(raw["column"]) != column:
         raise AssertionError("Boundary query column is inconsistent.")
-    branch = int(raw["branch_longest"])
+    branch = _integer(raw["branch_longest"], "branch_longest")
     arc_weight = _multinomial(column)
     if branch % arc_weight:
         raise AssertionError("Branch bound is not divisible by its arc.")
     child = tuple(rows[row] - column[row] for row in range(len(rows)))
-    extremum_id = int(raw["suffix_extremum_id"])
+    extremum_id = _integer(raw["suffix_extremum_id"], "suffix_extremum_id")
     if not 0 <= extremum_id < len(extrema):
         raise AssertionError("Suffix extremum reference is invalid.")
     used_extrema.add(extremum_id)
@@ -238,9 +248,9 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
         raise AssertionError("Row margins do not match.")
     if _tuple_vector(data["column_margins"]) != columns:
         raise AssertionError("Column margins do not match.")
-    if int(data["observed_weight"]) != threshold:
+    if _integer(data["observed_weight"], "observed_weight") != threshold:
         raise AssertionError("Observed weight is corrupted.")
-    if int(data["denominator"]) != denominator:
+    if _integer(data["denominator"], "denominator") != denominator:
         raise AssertionError("Denominator is corrupted.")
 
     raw_states = data["states"]
@@ -290,8 +300,8 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
                 raise AssertionError("Missing compact state.")
             state = state_map[state_key]
             used_states.add(state_key)
-            longest = int(state["longest_completion"])
-            extremum_id = int(state["longest_extremum_id"])
+            longest = _integer(state["longest_completion"], "longest_completion")
+            extremum_id = _integer(state["longest_extremum_id"], "longest_extremum_id")
             if not 0 <= extremum_id < len(raw_extrema):
                 raise AssertionError("State extremum reference is invalid.")
             used_extrema.add(extremum_id)
@@ -315,7 +325,7 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
                 prefix * multiplicity
                 for prefix, multiplicity in accepted_entries
             )
-            if int(state["accepted_weight"]) != state_contribution:
+            if _integer(state["accepted_weight"], "accepted_weight") != state_contribution:
                 raise AssertionError("Compact state mass is corrupted.")
             accepted_total += state_contribution
             if not remaining:
@@ -344,9 +354,9 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
                         used_batches.add(key)
                         if line_length < 4:
                             raise AssertionError("A short line was batched.")
-                        if int(batch["line_length"]) != line_length:
+                        if _integer(batch["line_length"], "line_length") != line_length:
                             raise AssertionError("Batch line length is corrupted.")
-                        peak = int(batch["peak_index"])
+                        peak = _integer(batch["peak_index"], "peak_index")
                         if not 0 <= peak < line_length:
                             raise AssertionError("Batch peak is outside the line.")
                         raw_queries = batch["queries"]
@@ -356,7 +366,7 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
                         for raw_query in raw_queries:
                             if not isinstance(raw_query, dict):
                                 raise AssertionError("Malformed batch query.")
-                            index = int(raw_query["index"])
+                            index = _integer(raw_query["index"], "query index")
                             if index in query_values or not 0 <= index < line_length:
                                 raise AssertionError("Duplicate or invalid query.")
                             column = _column_at(
@@ -389,8 +399,12 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
 
                         left_raw = batch["accepted_left_end"]
                         right_raw = batch["accepted_right_start"]
-                        left = None if left_raw is None else int(left_raw)
-                        right = None if right_raw is None else int(right_raw)
+                        left = None if left_raw is None else _integer(left_raw, "accepted_left_end")
+                        right = (
+                            None
+                            if right_raw is None
+                            else _integer(right_raw, "accepted_right_start")
+                        )
                         if left == line_length - 1:
                             if right is not None:
                                 raise AssertionError("All-accepted line has a right range.")
@@ -486,7 +500,7 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
                                     )
                                 mass = product // denominator_step
                         contribution = multiplicity * prefix * accepted_mass
-                        if int(batch["accepted_weight"]) != contribution:
+                        if _integer(batch["accepted_weight"], "accepted_weight") != contribution:
                             raise AssertionError("Compact interval mass is corrupted.")
                         accepted_total += contribution
 
@@ -520,15 +534,15 @@ def verify_compact_certificate_data(data: dict[str, object]) -> Fraction:
         raise AssertionError("Compact certificate has an extra batch.")
     if used_extrema != set(range(len(raw_extrema))):
         raise AssertionError("Compact certificate has an extra extremum.")
-    if accepted_total != int(data["accepted_weight"]):
+    if accepted_total != _integer(data["accepted_weight"], "accepted_weight"):
         raise AssertionError("Compact accepted mass is corrupted.")
     p_value = Fraction(accepted_total, denominator)
     raw_p = data["p_value"]
     if not isinstance(raw_p, dict):
         raise AssertionError("Compact p-value is malformed.")
     recorded = Fraction(
-        int(raw_p["numerator"]),
-        int(raw_p["denominator"]),
+        _integer(raw_p["numerator"], "p-value numerator"),
+        _integer(raw_p["denominator"], "p-value denominator"),
     )
     if p_value != recorded:
         raise AssertionError("Compact p-value is corrupted.")

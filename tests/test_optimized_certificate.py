@@ -29,6 +29,23 @@ class OptimizedCertificateTests(unittest.TestCase):
             self.result.p_value,
         )
 
+    def test_non_integer_scalars_are_rejected(self) -> None:
+        paths = (
+            ("observed_weight",),
+            ("state_records", 0, "accepted_weight"),
+            ("batch_records", 0, "peak_index"),
+        )
+        for invalid in (1.5, "1", True):
+            for path in paths:
+                data = copy.deepcopy(self.data)
+                target = data
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = invalid
+                with self.subTest(path=path, invalid=invalid):
+                    with self.assertRaises(AssertionError):
+                        verify_certificate_data(data)
+
     def test_corrupted_batch_value_is_rejected(self) -> None:
         data = copy.deepcopy(self.data)
         data["batch_records"][0]["queries"][0]["branch_longest"] += 1

@@ -50,6 +50,13 @@ def _path_weight(columns: tuple[tuple[int, ...], ...]) -> int:
     return result
 
 
+def _integer(value: object, name: str) -> int:
+    """Accept JSON integers only; never silently truncate strings/floats."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise AssertionError(f"{name} must be an integer.")
+    return value
+
+
 class _IndependentExtrema:
     @lru_cache(maxsize=None)
     def longest(
@@ -96,7 +103,7 @@ class _IndependentExtrema:
 def _tuple_vector(value: object) -> tuple[int, ...]:
     if not isinstance(value, (list, tuple)):
         raise AssertionError("Expected an integer vector.")
-    return tuple(int(item) for item in value)
+    return tuple(_integer(item, "vector item") for item in value)
 
 
 def _tuple_matrix(value: object) -> tuple[tuple[int, ...], ...]:
@@ -129,11 +136,11 @@ def _verify_witness(
 
 def _record_key(record: dict[str, object]) -> tuple[object, ...]:
     return (
-        int(record["layer"]),
+        _integer(record["layer"], "layer"),
         _tuple_vector(record["residual_rows"]),
         _tuple_vector(record["remaining_columns"]),
-        int(record["prefix_weight"]),
-        int(record["prefix_multiplicity"]),
+        _integer(record["prefix_weight"], "prefix_weight"),
+        _integer(record["prefix_multiplicity"], "prefix_multiplicity"),
     )
 
 
@@ -162,9 +169,9 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
         raise AssertionError("Certificate row margins do not match the table.")
     if _tuple_vector(data["column_margins"]) != columns:
         raise AssertionError("Certificate column margins do not match the table.")
-    if int(data["observed_weight"]) != threshold:
+    if _integer(data["observed_weight"], "observed_weight") != threshold:
         raise AssertionError("Certificate observed weight is corrupted.")
-    if int(data["denominator"]) != denominator:
+    if _integer(data["denominator"], "denominator") != denominator:
         raise AssertionError("Certificate denominator is corrupted.")
 
     raw_states = data["state_records"]
@@ -205,7 +212,7 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                 record = state_map[key]
                 used_states.add(key)
 
-                if int(record["longest_completion"]) != actual_longest:
+                if _integer(record["longest_completion"], "longest_completion") != actual_longest:
                     raise AssertionError("State longest completion is corrupted.")
                 longest_witness = _tuple_matrix(record["longest_columns"])
                 _verify_witness(
@@ -232,7 +239,10 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                     if record["shortest_completion"] is not None:
                         raise AssertionError("Unexpected shortest completion.")
                 else:
-                    if int(record["shortest_completion"]) != actual_shortest:
+                    if (
+                        _integer(record["shortest_completion"], "shortest_completion")
+                        != actual_shortest
+                    ):
                         raise AssertionError("State shortest completion is corrupted.")
                     shortest_witness = _tuple_matrix(record["shortest_columns"])
                     _verify_witness(
@@ -244,11 +254,11 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
 
                 if expected_decision == "accept_all":
                     contribution = multiplicity * prefix * _multinomial(state_rows)
-                    if int(record["accepted_weight"]) != contribution:
+                    if _integer(record["accepted_weight"], "accepted_weight") != contribution:
                         raise AssertionError("State accepted contribution is corrupted.")
                     accepted_total += contribution
                     continue
-                if int(record["accepted_weight"]) != 0:
+                if _integer(record["accepted_weight"], "accepted_weight") != 0:
                     raise AssertionError("Non-accepting state has accepted mass.")
                 if expected_decision == "reject_all":
                     continue
@@ -259,7 +269,7 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                 for batch in batch_map.get(key, []):
                     used_batches.add(id(batch))
                     line = _tuple_matrix(batch["line_columns"])
-                    fixed_third = int(batch["fixed_third"])
+                    fixed_third = _integer(batch["fixed_third"], "fixed_third")
                     expected_line = tuple(
                         column
                         for column in _column_vectors(remaining[0], state_rows)
@@ -286,7 +296,7 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                                 "The claimed line violates strict log-concavity."
                             )
 
-                    peak = int(batch["peak_index"])
+                    peak = _integer(batch["peak_index"], "peak_index")
                     leftmost_peak = max(range(len(values)), key=lambda index: values[index])
                     if peak != leftmost_peak:
                         raise AssertionError("Batch peak index is corrupted.")
@@ -298,13 +308,13 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                     for query in raw_queries:
                         if not isinstance(query, dict):
                             raise AssertionError("Malformed batch query.")
-                        index = int(query["index"])
+                        index = _integer(query["index"], "query index")
                         if index in query_indices or not 0 <= index < len(line):
                             raise AssertionError("Invalid or duplicate batch query index.")
                         query_indices.add(index)
                         if _tuple_vector(query["column"]) != line[index]:
                             raise AssertionError("Batch query column is corrupted.")
-                        if int(query["branch_longest"]) != values[index]:
+                        if _integer(query["branch_longest"], "branch_longest") != values[index]:
                             raise AssertionError("Batch queried value is corrupted.")
                         witness = _tuple_matrix(query["maximizing_columns"])
                         _verify_witness(
@@ -366,7 +376,7 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
                             * _multinomial(column)
                             * _multinomial(child)
                         )
-                    if int(batch["accepted_weight"]) != contribution:
+                    if _integer(batch["accepted_weight"], "accepted_weight") != contribution:
                         raise AssertionError("Batch contribution is corrupted.")
                     accepted_total += contribution
 
@@ -386,14 +396,17 @@ def verify_certificate_data(data: dict[str, object]) -> Fraction:
         raise AssertionError("Certificate has an extra state-decision record.")
     if len(used_batches) != len(raw_batches):
         raise AssertionError("Certificate has an extra or duplicate batch record.")
-    if accepted_total != int(data["accepted_weight"]):
+    if accepted_total != _integer(data["accepted_weight"], "accepted_weight"):
         raise AssertionError("Certificate total accepted mass is corrupted.")
 
     p_value = Fraction(accepted_total, denominator)
     raw_p = data["p_value"]
     if not isinstance(raw_p, dict):
         raise AssertionError("Malformed p-value record.")
-    recorded_p = Fraction(int(raw_p["numerator"]), int(raw_p["denominator"]))
+    recorded_p = Fraction(
+        _integer(raw_p["numerator"], "p-value numerator"),
+        _integer(raw_p["denominator"], "p-value denominator"),
+    )
     if p_value != recorded_p:
         raise AssertionError("Certificate p-value is corrupted.")
     return p_value

@@ -37,6 +37,23 @@ class CompactCertificateTests(unittest.TestCase):
             self.result.p_value,
         )
 
+    def test_non_integer_scalars_are_rejected(self) -> None:
+        paths = (
+            ("observed_weight",),
+            ("states", 0, "accepted_weight"),
+            ("batches", 0, "line_length"),
+        )
+        for invalid in (1.5, "1", True):
+            for path in paths:
+                data = copy.deepcopy(self.data)
+                target = data
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = invalid
+                with self.subTest(path=path, invalid=invalid):
+                    with self.assertRaises(AssertionError):
+                        verify_compact_certificate_data(data)
+
     def test_omitted_daughters_are_not_listed(self) -> None:
         for batch in self.data["batches"]:
             self.assertNotIn("line_columns", batch)
