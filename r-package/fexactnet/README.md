@@ -53,7 +53,7 @@ and has no R runtime dependency.
 
 ## Scope
 
-Version 0.2.0 remains an experimental three-row implementation. General
+Version 0.2.1 remains an experimental three-row implementation. General
 `r x c` FEXACT is outside its native scope; other dimensions delegate to
 `stats::fisher.test()`. See the repository paper and `?fisher_network` for
 supported families, controlled ablations, and limitations.

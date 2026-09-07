@@ -14,7 +14,7 @@ cli:
 
 check-r:
 	R CMD build r-package/fexactnet
-	R CMD check --no-manual --as-cran fexactnet_0.2.0.tar.gz
+	R CMD check --no-manual --as-cran fexactnet_0.2.1.tar.gz
 
 clean:
 	$(MAKE) -C cli clean

@@ -1,3 +1,8 @@
+# fexactnet 0.2.1
+
+- Hardened certificate parsing, repository integrity checks, and CI action
+  provenance without changing the statistical method or supported scope.
+
 # fexactnet 0.2.0
 
 - Published the paper, release metadata, and reproducibility-oriented README.

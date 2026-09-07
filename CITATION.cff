@@ -6,8 +6,8 @@ authors:
   - family-names: Herrmann
     given-names: Maarten Linus
     orcid: "https://orcid.org/0009-0005-8721-6588"
-version: 0.2.0
-date-released: 2026-08-19
+version: 0.2.1
+date-released: 2026-09-07
 repository-code: "https://github.com/Maar10Herr/Exact-Fisher-Network-Public"
 license: GPL-2.0-or-later
 preferred-citation:
@@ -19,4 +19,4 @@ preferred-citation:
       orcid: "https://orcid.org/0009-0005-8721-6588"
   year: 2026
   repository-code: "https://github.com/Maar10Herr/Exact-Fisher-Network-Public"
-  notes: "Technical preprint, release 0.2.0."
+  notes: "Technical preprint, software release 0.2.1."
