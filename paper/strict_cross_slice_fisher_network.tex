@@ -1,0 +1,572 @@
+\documentclass[10pt]{article}
+\ifdefined\pdfinfoomitdate\pdfinfoomitdate=1\fi
+\ifdefined\pdftrailerid\pdftrailerid{}\fi
+\ifdefined\pdfsuppressptexinfo\pdfsuppressptexinfo=15\fi
+\usepackage[margin=0.72in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,booktabs,microtype,hyperref}
+\usepackage[T1]{fontenc}
+\setlength{\parskip}{2.5pt}
+\setlength{\parindent}{1.2em}
+\setlength{\abovedisplayskip}{6pt plus 2pt minus 2pt}
+\setlength{\belowdisplayskip}{6pt plus 2pt minus 2pt}
+\raggedbottom
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newcommand{\Z}{\mathbb Z}
+\newcommand{\EXC}{\textup{(EXC)}}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue,
+  pdftitle={Strict Cross-Slice Order and Line Batching in the Exact Fisher Network},
+  pdfauthor={Maarten Linus Herrmann (ORCID: 0009-0005-8721-6588)},
+  pdfsubject={Revised research draft, 27 October 2026},
+  pdfkeywords={Fisher exact test; network algorithm; M-concavity; line batching; exact computation},
+  pdfcreator={LaTeX}
+}
+
+\title{Strict Cross-Slice Order and Line Batching in the Exact Fisher Network}
+\author{Maarten Linus Herrmann\\
+\small Erasmus School of Economics\\
+\small Erasmus University Rotterdam\\
+\small\href{https://orcid.org/0009-0005-8721-6588}{ORCID: 0009-0005-8721-6588}}
+\date{\small Revised research draft\\
+\small 27 October 2026}
+
+\usepackage{xurl}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+At one step of the Mehta--Patel exact Fisher network, a daughter
+allocation \(x\) fixes the next table column.  Write
+\(B(x)=A(x)L(R-x;C')\) for the largest complete branch weight below it.
+Network-induced M-concavity of \(\log L\), strengthened by the strict
+first-column multinomial factor, yields a strict cross-slice rhombus.
+A within-line ordering lemma then implies monotone movement of leftmost
+daughter modes across adjacent three-coordinate slices and an amortized
+\(O(m+s)\) peak-query sweep.  The accompanying three-row implementation includes daughter-line
+batching, outer-interval acceptance, interval-mass aggregation and prefix
+reuse. These are implementation mechanisms distinct from the query bound.
+The release keeps exact-rational verification
+and FEXACT-compatible floating computation as explicit numerical scopes.
+\end{abstract}
+
+\section{Introduction}
+
+The Mehta--Patel network computes the Fisher--Freeman--Halton exact tail
+for a contingency table with fixed margins by merging equal residual
+states and trimming complete subtrees with exact continuation
+bounds~\cite{mehta1983,mehta1986}.  FEXACT adds packed state
+representations, shared bound caches and ordered prefix
+storage~\cite{clarkson1993}.  Later work develops exact path trimming,
+discrete-convex transportation formulations and one-dimensional
+daughter ordering~\cite{aoki2002,suzuki2005,requena2006}.
+
+This paper isolates one structural result within a broader implementation.
+Sections 2--6 prove a strict cross-slice branch inequality and its
+monotone-leftmost-mode consequence.  Section 7 states exactly what that
+consequence changes in an implementation.  Section 8 describes the implementation and its finite correctness tests.
+The theorem controls peak location; it does not imply reductions in runtime,
+arcs, states or memory.
+
+The conditional exact test and network construction are due to Mehta and Patel
+\cite{mehta1983,mehta1986}; the practical FEXACT refinements are due to
+Clarkson, Fan and Joe~\cite{clarkson1993}; the network-induced
+discrete-convex structure used in the proof is due to Murota
+\cite{murota1996,murota2021}; and the later path-trimming,
+transportation and daughter-ordering developments are due respectively
+to Aoki; Suzuki, Aoki and Murota; and Requena and Mart\'in Ciudad
+\cite{aoki2002,suzuki2005,requena2006}.  This paper establishes the strict
+cross-slice rhombus, its monotone-leftmost-mode and amortized peak-query
+consequences, and a research implementation.  The cited literature
+supplies the exact test, network algorithm, FEXACT, network induction,
+transportation extrema and one-dimensional daughter ordering.
+
+In standard array language, the cross-slice result is a strict multiplicative
+Monge-type inequality, equivalently strict log-submodularity, on each
+feasible elementary slice rhombus.
+
+\section{Exact Fisher network and branch bounds}
+
+Let \(Y=(y_{ab})\) be a nonnegative \(r\times c\) integer table with
+fixed row and column margins.  Conditional probability is proportional
+to
+\[
+  \frac{1}{\prod_{a,b}y_{ab}!}.
+\]
+The exact two-sided tail used here contains every table no more probable
+than the observed table.  At a residual network state, let
+\(R\in\Z_+^r\) be the row margins, let the next column total be \(m\),
+and let the later column margins be \(C'=(c_1,\ldots,c_q)\).
+For a feasible daughter allocation \(x\), define
+\[
+ A(x)=\binom{m}{x_1,\ldots,x_r},
+ \qquad
+ L(y;C')=\max_Z\prod_{b=1}^q
+ \binom{c_b}{z_{1b},\ldots,z_{rb}},
+\]
+where \(Z\) has row margins \(y\) and column margins \(C'\).  The exact
+largest complete branch weight below \(x\) is
+\begin{equation}
+  B(x)=A(x)L(R-x;C').
+  \label{eq:branch}
+\end{equation}
+Every value used below is positive and finite because its daughter and
+suffix margins are explicitly required to be feasible.
+
+There are two numerical scopes.  The research oracle uses
+arbitrary-precision integer path weights, exact tail membership, exact
+rational output and replayable certificates.  The native product uses
+floating log-factorials, the FEXACT comparison convention with tolerance
+\(3.45254\times10^{-7}\), and floating output.  Release tests find the
+same conditional tail on their declared cases, but the scopes do not
+provide identical numerical guarantees.  Certificate generation and
+verification are timed separately from uncertified native computation.
+
+\section{Discrete-convex suffix structure}
+
+The feasible suffix-margin domain is
+\[
+ \mathcal D(C')=
+ \left\{y\in\Z_+^r:\sum_a y_a=\sum_b c_b\right\}.
+\]
+Because the transportation graph is complete bipartite, this is exactly
+the domain of feasible row margins for \(C'\), including vectors with
+zero coordinates.
+
+The M-concavity convention in this paper is the following exchange
+axiom.  For a finite function \(f\) on a fixed-sum integral domain, if
+\(u_a>v_a\), there is a coordinate \(b\) with \(u_b<v_b\) such that
+\begin{equation*}
+ f(u)+f(v)\le
+ f(u-e_a+e_b)+f(v+e_a-e_b).
+ \tag{EXC}
+\end{equation*}
+The exchanged vectors must belong to the domain.  This is equation
+(2.4) on printed page 277 of Murota~\cite{murota1996}.
+
+\begin{lemma}[Network-induced suffix M-concavity]
+\label{lem:suffix}
+The function \(\ell(y)=\log L(y;C')\) is M-concave on
+\(\mathcal D(C')\).
+\end{lemma}
+
+\begin{proof}
+For a suffix table \(Z=(z_{ab})\),
+\begin{equation}
+ \log L(y;C')=
+ \sum_b\log(c_b!)
+ -\min_Z\sum_{a,b}\log(z_{ab}!).
+ \label{eq:transport}
+\end{equation}
+Thus \(\ell\) is a constant minus a separable convex transportation
+minimum.  More explicitly, map \(z_{ab}\) to integer flow on the
+complete bipartite network from row vertices to column vertices.  Its
+row boundary is \(y\), its column demand is \(C'\), and each arc has
+cost
+\[
+ \phi(n)=\log(n!),\qquad
+ \phi(n+1)-\phi(n)=\log(n+1).
+\]
+The increments are nondecreasing, so \(\phi\) is discrete convex.
+The negative optimum value of this separable convex-cost flow is
+M-concave in its full boundary by Murota's Example 2.3~\cite{murota1996};
+Theorem 4.7(2) of~\cite{murota2021} also gives the convex form for
+separable convex arc costs. Fixing the column boundary preserves the
+row exchange: the two column boundary vectors agree, so an exchange
+recipient must be a row coordinate.  The first term
+of \eqref{eq:transport} is independent of \(y\), proving the claim.
+\end{proof}
+
+Zero residual coordinates are permitted by \(\mathcal D(C')\).
+An exchange decrements only a strict surplus and cannot create a
+negative coordinate.  If \(C'\) is empty, then
+\(\mathcal D(C')=\{0\}\), \(L(0;\varnothing)=1\), and the exchange
+statement is vacuous.  Neighboring vectors outside the domain are not
+assigned approximate or surrogate values; statements below require all
+displayed neighbors to be feasible.
+
+\section{Strict within-line order}
+
+The following standard balancing argument makes the mode argument
+self-contained.  One-dimensional daughter ordering and its discrete-convex
+precedents include Requena and Mart\'in Ciudad~\cite{requena2006}.
+
+\begin{lemma}[Balanced integer split]
+\label{lem:split}
+Let \(Z\) be a nonnegative integer matrix with even row and column sums,
+and suppose specified entries of \(Z\) are even.  Then
+\(Z=U+V\) for nonnegative integer matrices \(U,V\) that have half the
+row and column sums of \(Z\), satisfy
+\(|u_{ab}-v_{ab}|\le1\) in every cell, and split every specified even
+entry equally.
+\end{lemma}
+
+\begin{proof}
+Split every even entry equally.  Make a bipartite graph with one edge
+for each odd entry, joining its row and column vertices.  Each vertex
+has even degree because its margin and the contributions of even entries
+are even.  Decompose the graph into cycles and color each cycle
+alternately.  Give the larger half of each odd entry to \(U\) on one
+color and to \(V\) on the other.  The two colors occur equally often at
+each vertex, which gives the required margins and cellwise balance.
+\end{proof}
+
+\begin{lemma}[Strict within-line log-concavity]
+\label{lem:line}
+Choose distinct rows \(p,q\), set
+\(x(t)=x(0)+t(e_p-e_q)\), and let \(I\subset\Z\) be the feasible
+integer interval.  For every adjacent triple in \(I\),
+\begin{equation}
+  B(x(t))^2>B(x(t-1))B(x(t+1)).
+  \label{eq:line-strict}
+\end{equation}
+Consequently the adjacent ratios \(B(x(t+1))/B(x(t))\) strictly
+decrease in \(t\).  The line has either one maximum or two adjacent
+equal maxima.  Its leftmost maximizer is
+\begin{equation}
+ p=\min\left(
+ \{t\in I:t<\max I,\ B(x(t+1))/B(x(t))\le1\}
+ \cup\{\max I\}\right).
+ \label{eq:leftmost-characterization}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Let \(Y^-\) and \(Y^+\) minimize the products of cell factorials among
+complete tables whose first columns are \(x(t-1)\) and \(x(t+1)\).
+The matrix \(Z=Y^-+Y^+\) has even margins and first column \(2x(t)\).
+Apply Lemma~\ref{lem:split}, specifying the first column, to obtain
+complete tables \(U,V\) with first column \(x(t)\).
+
+For two nonnegative integers of fixed sum, their factorial product is
+minimized when they are as equal as possible: if \(a\ge b+2\), moving
+one unit from \(a\) to \(b\) multiplies \(a!b!\) by
+\((b+1)/a<1\).  Applying this cellwise gives
+\[
+ D(U)D(V)\le D(Y^-)D(Y^+),
+ \qquad D(W)=\prod_{a,b}w_{ab}!.
+\]
+The inequality is strict in first-column row \(p\), whose outer values
+are \(x_p(t)-1\) and \(x_p(t)+1\), while both middle values are
+\(x_p(t)\).  Hence, writing \(d(x)\) for the minimum of \(D\) at first
+column \(x\),
+\[
+ d(x(t))^2\le D(U)D(V)
+ <d(x(t-1))d(x(t+1)).
+\]
+Taking reciprocals and multiplying by the common squared product of
+column factorials proves \eqref{eq:line-strict}.
+
+Dividing \eqref{eq:line-strict} by adjacent positive terms shows that
+the forward ratios strictly decrease.  They can therefore cross one
+at most once.  A ratio equal to one produces exactly two adjacent equal
+maxima; otherwise the maximum is unique.  Before the first ratio at
+most one, values strictly increase, and at and after it they do not
+increase.  This proves \eqref{eq:leftmost-characterization}, including
+intervals of length one.
+\end{proof}
+
+\section{Strict cross-slice rhombus}
+
+Choose distinct rows \(i,j,k\).  Suppose all four daughters
+\[
+ x,\quad x^i=x+e_i-e_j,\quad x^k=x+e_k-e_j,\quad
+ x^{ik}=x+e_i+e_k-2e_j
+\]
+are feasible.  In particular, feasibility of \(x^{ik}\) requires
+\(x_j\ge2\).
+
+\begin{theorem}[Strict cross-slice rhombus]
+\label{thm:rhombus}
+\begin{equation}
+ B(x^i)B(x^k)>B(x)B(x^{ik}).
+ \label{eq:strict-rhombus}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Set \(y=R-x\) and \(y^{ik}=R-x^{ik}\).  Then
+\begin{equation}
+ y-y^{ik}=e_i+e_k-2e_j.
+ \label{eq:forced-vector}
+\end{equation}
+Relative to \(y^{ik}\), the vector \(y\) has surplus coordinates \(i\)
+and \(k\), and \(j\) is the only coordinate with the required opposite
+sign.  After selecting surplus coordinate \(i\) in \EXC, the
+exchange recipient is therefore forced to be \(j\).
+
+The four suffix margins, written explicitly, are
+\[
+\begin{array}{c|c}
+\text{daughter}&\text{suffix margin}\\ \hline
+x&y\\
+x^i&y-e_i+e_j\\
+x^k&y-e_k+e_j\\
+x^{ik}&y-e_i-e_k+2e_j.
+\end{array}
+\]
+Lemma~\ref{lem:suffix} instantiates \EXC\ as
+\[
+\begin{split}
+\ell(y)+\ell(y-e_i-e_k+2e_j)
+\le{}&\ell(y-e_i+e_j)\\
+&+\ell(y-e_k+e_j).
+\end{split}
+\]
+Exponentiating gives the known, non-strict suffix inequality
+\begin{equation}
+ L(y-e_i+e_j;C')L(y-e_k+e_j;C')
+ \ge L(y;C')L(y-e_i-e_k+2e_j;C').
+ \label{eq:weak-suffix}
+\end{equation}
+
+Direct cancellation of the four first-column multinomials gives
+\begin{equation}
+ \frac{A(x^i)A(x^k)}{A(x)A(x^{ik})}
+ =\frac{x_j}{x_j-1}.
+ \label{eq:strict-factor}
+\end{equation}
+Feasibility of \(x^{ik}\) implies \(x_j\ge2\), so the factor is
+strictly greater than one.  Multiplying \eqref{eq:weak-suffix} and
+\eqref{eq:strict-factor} proves \eqref{eq:strict-rhombus}.
+\end{proof}
+
+The conceptual separation is exact: known network-induced M-concavity
+gives the weak inequality; the first-column multinomial gives the strict
+factor; their product gives the strict branch rhombus.
+
+\section{Monotone leftmost modes}
+
+Fix all daughter coordinates outside rows \(i,j,k\).  Let \(d\) be the
+allocation total remaining in these three coordinates and write
+\[
+ t=x_i,\qquad z=x_k,\qquad x_j=d-z-t.
+\]
+Let \(r_i,r_j,r_k\) be the three residual row capacities.  For an
+integer \(z\) with \(0\le z\le r_k\), define
+\begin{equation}
+ I_z=[\ell_z,u_z]\cap\Z,\qquad
+ \ell_z=\max(0,d-z-r_j),\qquad
+ u_z=\min(r_i,d-z).
+ \label{eq:slice-interval}
+\end{equation}
+The slice is feasible exactly when \(I_z\ne\varnothing\).  For adjacent
+feasible slices \(z,z+1\),
+\begin{equation}
+ \ell_{z+1}=\max(0,d-z-1-r_j)\le\ell_z,\qquad
+ u_{z+1}=\min(r_i,d-z-1)\le u_z.
+ \label{eq:endpoints}
+\end{equation}
+
+\begin{lemma}[Monotone leftmost mode]
+\label{lem:generic-mode}
+Let \(b(t,z)>0\) be defined on feasible integer intervals
+\(I_z=[\ell_z,u_z]\cap\Z\).  Assume that:
+\begin{enumerate}
+\item \(b(t,z)^2>b(t-1,z)b(t+1,z)\) for every feasible adjacent triple;
+\item the forward ratio
+\(\rho_z(t)=b(t+1,z)/b(t,z)\) satisfies
+\(\rho_{z+1}(t)<\rho_z(t)\) wherever both ratios exist;
+\item \(\ell_{z+1}\le\ell_z\) and \(u_{z+1}\le u_z\).
+\end{enumerate}
+Then the leftmost maximizer \(p(z)\) weakly decreases:
+\[
+ p(z+1)\le p(z).
+\]
+\end{lemma}
+
+\begin{proof}
+Strict log-concavity makes \(\rho_z(t)\) strictly decreasing in \(t\).
+Thus Lemma~\ref{lem:line}'s characterization
+\eqref{eq:leftmost-characterization} applies to each slice, including a
+slice of length one and the case of two adjacent equal maxima.
+
+Write \(p=p(z)\) and \(I_{z+1}=[\ell',u']\cap\Z\).
+If \(p>u'\), then \(p(z+1)\le u'<p\); this is the upper-endpoint clipping
+case.  Otherwise, \(\ell'\le\ell_z\le p\le u'\), so the previous mode
+remains feasible.  If \(p=u'\), the desired inequality is immediate.
+If \(p<u'\), the ratio \(\rho_{z+1}(p)\) exists.  Because
+\(u'\le u_z\), the ratio \(\rho_z(p)\) also exists.  The leftmost-mode
+characterization gives \(\rho_z(p)\le1\), with equality precisely when
+\(p\) is the left member of two adjacent equal maxima.  Assumption 2
+then gives
+\[
+  \rho_{z+1}(p)<\rho_z(p)\le1.
+\]
+Therefore the first ratio at most one on slice \(z+1\), or its upper
+endpoint if no such ratio exists, occurs no later than \(p\).
+Hence \(p(z+1)\le p\).  This also covers ratios at the interval
+endpoints: a forward ratio is used only when its right neighbor exists.
+\end{proof}
+
+\begin{corollary}[Fisher-network slice order]
+\label{cor:fisher-mode}
+For \(b(t,z)=B(x)\) under \eqref{eq:slice-interval}, the leftmost
+maximizer weakly decreases with \(z\).
+\end{corollary}
+
+\begin{proof}
+Lemma~\ref{lem:line} gives assumption 1 of
+Lemma~\ref{lem:generic-mode}, and \eqref{eq:endpoints} gives assumption
+3.  Theorem~\ref{thm:rhombus}, with increments in \(t\) and \(z\), is
+\[
+ B(t+1,z)B(t,z+1)>B(t,z)B(t+1,z+1).
+\]
+Dividing by positive terms yields
+\[
+ \rho_{z+1}(t)=\frac{B(t+1,z+1)}{B(t,z+1)}
+ <\frac{B(t+1,z)}{B(t,z)}=\rho_z(t),
+\]
+which is assumption 2.  Apply Lemma~\ref{lem:generic-mode}.
+\end{proof}
+
+\begin{lemma}[Amortized peak-query bound]
+\label{lem:query-bound}
+Consider \(s\ge 1\) consecutive feasible Fisher-network slices as
+in \eqref{eq:slice-interval}, all contained in the common coordinate
+range \(\{0,\ldots,m\}\). Find the first leftmost mode by binary search.  On every later slice,
+start at the preceding mode clipped to the new upper endpoint and walk
+left to the new leftmost mode.  With branch values cached within the
+sweep, peak location uses
+\[
+ O(\log m)+O(m)+O(s)=O(m+s)
+\]
+branch-bound queries and peak comparisons.  Independent binary searches
+use \(O(s\log m)\).
+\end{lemma}
+
+\begin{proof}
+Write \(p_h\) for the leftmost mode of slice \(h\), and for \(h\ge1\)
+let \(q_h=\min(p_{h-1},u_h)\) be the clipped starting point.  The
+corollary and feasibility give
+\[
+ p_h\le q_h\le p_{h-1}.
+\]
+The number of left moves on slice \(h\) is \(q_h-p_h\), and therefore
+\[
+ \sum_{h=1}^{s-1}(q_h-p_h)
+ \le \sum_{h=1}^{s-1}(p_{h-1}-p_h)
+ =p_0-p_{s-1}\le m.
+\]
+There is one terminal check per later slice, and each ratio comparison
+requests only a constant number of cached branch values.  The first
+binary search costs \(O(\log m)\).  This proves the displayed bound,
+with the cases \(m\le1\) absorbed into the constant.
+\end{proof}
+
+Lemma~\ref{lem:query-bound} covers branch-bound calls and peak-location
+comparisons.  Daughter generation, threshold searches, accepted intervals,
+forwarded arcs, residual states and total runtime depend on separate
+mechanisms.  Peak comparisons can therefore fall without a corresponding
+wall-clock improvement.
+
+\section{Algorithmic consequence}
+
+The shared native C core exposes five explicit modes:
+\texttt{baseline}, \texttt{accept\_only}, \texttt{line\_batch},
+\texttt{line\_batch\_monge} and \texttt{auto}.  The two line modes have
+identical daughter generation, exact outer-interval membership,
+interval-mass aggregation, reduced forwarding and prefix-state reuse.
+They differ only in peak location: \texttt{line\_batch} searches each
+slice independently, whereas \texttt{line\_batch\_monge} uses
+Corollary~\ref{cor:fisher-mode}. The two modes isolate the peak-location change.
+
+The native engine supports \(3\times c\) tables and, by safe
+transposition, \(r\times3\) tables.  Other dimensions are explicitly
+delegated by the R interface to
+\texttt{stats::fisher.test(hybrid=FALSE, simulate.p.value=FALSE)};
+the standalone program reports them as unsupported.  The product is not
+claimed as a general \(r\times c\) replacement.
+
+In exact arithmetic, accept-only pruning preserves the tail. It omits
+shortest-path rejection and retains longest-bound acceptance; every
+unresolved daughter is forwarded.  It can expand excessively. The native floating implementation remains
+subject to the numerical convention stated above.  The current \texttt{auto} rule selects
+\texttt{line\_batch}.
+
+\section{Implementation and verification}
+
+The line-batching implementation combines outer-interval acceptance,
+interval-mass aggregation and prefix reuse. These mechanisms are separate
+from the monotone-mode sweep. The query bound does not establish a runtime
+or memory advantage, and the implementation is not a general replacement
+for FEXACT.
+
+The recorded release gate compares the exact-rational oracle, all manual
+native modes and \texttt{stats::fisher.test} on 1,198 cases: exhaustive
+positive-margin \(3\times2\) tables with total at most 7, \(3\times3\)
+tables with total at most 5, and 60 seeded random cases. It also compares
+48 representative cases with the pinned R 4.6.1 FEXACT harness, using
+absolute and relative tolerances of \(2\times10^{-12}\). Complementary
+tests cover permutations, transposition, workspace and allocation failures,
+and interruption. These finite comparisons do not prove numerical agreement
+for all inputs.
+
+\section{Empirical boundary and failed conjectures}
+
+Fixed-threshold boundaries need not move monotonically and need not move
+one unit at a time; retained exact counterexamples begin at total eight.
+A separate shared-longest-DP conjecture also failed: a root call already
+closes the reachable suffix DAG, so deleting later top-level calls need
+not delete internal dynamic-programming states.
+
+The package remains experimental and is limited to three-row native execution.  Integrating the cross-slice
+walk into R's FEXACT core would require a larger architectural change:
+FEXACT canonicalizes residual rows and emits daughters individually, whereas
+the walk needs stable row labels and ordered adjacent slices.
+
+\section{Attribution and scope of contribution}
+
+This work builds on the cited exact-testing, network-algorithm and
+discrete-convexity literature.  In particular, the Mehta--Patel network,
+Algorithm 643/FEXACT and its refinements, network-induced M-concavity,
+transportation formulations, path trimming and established
+one-dimensional daughter ordering remain the contributions of their
+respective authors~\cite{mehta1983,mehta1986,clarkson1993,murota1996,
+murota2021,aoki2002,suzuki2005,requena2006}.  This paper contributes the
+strict cross-slice statement and its bounded algorithmic consequence,
+together with a research implementation and finite correctness checks.  Citations identify
+intellectual provenance; they do not imply endorsement by the cited
+authors or institutions.
+
+\section{Reproducibility and computational assistance}
+
+The public implementation corresponding to this paper is available at
+\begin{quote}
+\scriptsize
+\url{https://github.com/Maar10Herr/Exact-Fisher-Network-Public}.
+\end{quote}
+It contains the shared C core, R and command-line interfaces, the
+exact-rational Python reference, and deterministic verification tests.
+The public checks are run with \texttt{make test}; the R package is built
+and checked separately with \texttt{make check-r}.
+
+The project record reports that AI tools assisted with literature organization,
+conjecture exploration, proof drafting, implementation, testing and record
+assembly; the earlier model identifiers are not recorded in the reviewed
+project material. GPT-6.1 Terra assisted the present manuscript revision, and
+GPT-6.1 Sol assisted preparation of code and verification materials. AI output
+is not mathematical evidence: the arguments depend on the cited
+network-induction result and explicit factorial identities, while the
+computational evidence comprises the stated finite tests.
+
+\section{Conclusion}
+
+Known suffix M-concavity and a strict multinomial factor give a strict
+cross-slice rhombus for exact Fisher-network branch values. With a
+within-line lemma and moving-domain argument, the rhombus orders leftmost
+modes across slices and yields an amortized peak-query bound. The theorem
+does not establish a runtime or memory improvement.
+
+\begingroup
+\footnotesize
+\bibliographystyle{plain}
+\bibliography{strict_cross_slice_fisher_network}
+\endgroup
+
+\end{document}

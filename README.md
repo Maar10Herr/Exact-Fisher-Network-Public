@@ -11,10 +11,11 @@ Python reference.
 > [!WARNING]
 > **Experimental research implementation; not a drop-in replacement for base R
 > FEXACT.** Native execution is limited to three-row tables (or three-column
-> tables by transposition). Retained difficult workloads remain slower and more
-> memory-intensive than `stats::fisher.test()`.
+> tables by transposition). Its query bound does not establish a runtime or
+> memory advantage over `stats::fisher.test()`.
 
 **[Read the paper](paper/Herrmann_Strict_Cross_Slice_Fisher_Network.pdf)** ·
+**[Paper source](paper/strict_cross_slice_fisher_network.tex)** ·
 **[Download the latest release](https://github.com/Maar10Herr/Exact-Fisher-Network-Public/releases/latest)**
 
 ## Result
@@ -25,7 +26,7 @@ For the exact largest branch weight
 B(x)=\binom{m}{x_1,\ldots,x_r}L(R-x;C'),
 ```
 
-every feasible elementary three-coordinate rhombus satisfies
+for distinct rows \(i,j,k\), when all four daughter allocations are feasible, the elementary rhombus satisfies
 
 ```math
 B(x+e_i-e_j)B(x+e_k-e_j)
@@ -38,11 +39,10 @@ leftmost daughter modes across adjacent slices. A consecutive sweep therefore
 uses amortized `O(m+s)` peak-location work in place of `O(s log m)` independent
 searches.
 
-The implementation exposes that theorem-level change as a controlled ablation,
-then separately evaluates line batching, interval aggregation, exact
-outer-interval acceptance, and prefix reuse. The benchmark records consistent
-peak-query savings, while timing ratios for the theorem-only comparison remain
-close to one and change sign.
+The implementation provides independently searched and monotone-walk peak
+location modes, together with line batching, interval aggregation,
+outer-interval acceptance, and prefix reuse. The theorem bounds peak queries;
+it does not establish an overall runtime or memory improvement.
 
 ## Implementations
 
@@ -53,8 +53,7 @@ close to one and change sign.
 | Python reference | Verification, certificates, and small exact examples | Arbitrary-precision integer weights and exact rational p-values |
 
 The native engines are `baseline`, `accept_only`, `line_batch`,
-`line_batch_monge`, and `auto`. The current `auto` rule selects `line_batch`; no
-stable adaptive selection rule was found.
+`line_batch_monge`, and `auto`. The current `auto` rule selects `line_batch`.
 
 ## Quick start
 
@@ -100,25 +99,17 @@ PY
 
 ## Evidence and performance boundary
 
-The release gate compares the exact-rational oracle, every manual native mode,
-base R, and representative tables evaluated through a pinned R FEXACT harness.
-It covers 1,198 cross-language cases, including exhaustive small tables,
-permutations, transposes, ties, sparse and dense tables, zero cells, large path
-weights, workspace failures, and deterministic interruption.
+The recorded release gate compared the exact-rational oracle, every manual native
+mode and base R on 1,198 cases, including exhaustive positive-margin small
+tables and 60 seeded random tables; 48 representatives were also compared to
+pinned R FEXACT, with absolute and relative tolerance `2e-12`. Separate tests
+cover permutations, transposition, workspace and allocation failures, and
+interruption. Finite tests do not establish agreement for every input.
 
-On the retained benchmark:
-
-| Workload family | `line_batch` native core | Base R FEXACT |
-|---|---:|---:|
-| Small threshold tie | 0.007 ms | 0.500 ms |
-| Repeated prefixes | 0.288 ms | 1.000 ms |
-| Retained 10 ms tier | 0.476 s | 0.054 s |
-| Retained 100 ms tier | 1.817 s | 0.198 s |
-
-Small supported tables can benefit when setup cost dominates. The retained
-stress tiers show the opposite regime and define the present performance
-boundary. Full benchmark definitions, arithmetic conventions, and ablations
-are reported in the paper.
+The implementation is experimental. The query bound concerns peak location;
+performance depends on daughter generation, threshold searches, forwarding,
+state reuse, arithmetic and implementation costs. No general speed or memory
+advantage over FEXACT follows from the theorem.
 
 ## Verification
 
@@ -153,14 +144,14 @@ path-trimming, transportation, and daughter-ordering work:
 
 This project establishes the strict cross-slice rhombus, the resulting
 monotone-leftmost-mode and amortized query bounds, and the accompanying
-controlled implementation study. The cited works supply the exact-test,
+research implementation. The cited works supply the exact-test,
 network, FEXACT, discrete-convex, transportation, path-trimming, and
 one-dimensional ordering foundations.
 
 ## Repository map
 
 ```text
-paper/                    technical paper
+paper/                    general manuscript PDF and LaTeX source
 r-package/fexactnet/      R interface, shared C core, documentation, tests
 cli/                      command-line interface and native core tests
 src/exact_fisher_network/ exact-rational reference and certificate tools
